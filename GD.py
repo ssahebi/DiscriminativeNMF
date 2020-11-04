@@ -10,6 +10,335 @@ import matplotlib.pyplot as plt
 import math
 import os
 
+def gd_structure(k, kc, pathin, pathout, alpha, beta, delta, ep, grid, epoc):
+    
+    #This method is the implementation of the final model with applying structure
+    
+    with open(pathin + 'lg/l.txt') as file:
+        array2dX1 = [[float(digit) for digit in line.split(',')] for line in file]
+    
+    X1 = np.array(array2dX1)
+    
+    with open(pathin + 'lg/h.txt') as file:
+        array2dX2 = [[float(digit) for digit in line.split(',')] for line in file]
+    
+    X2 = np.array(array2dX2)
+    
+    with open(pathin + 'nmp.csv') as file:
+        arrayS = [[float(digit) for digit in line.split(',')] for line in file]
+        
+    S = np.array(arrayS)
+    
+    m1,n1 = X1.shape
+    m2,n2 = X2.shape
+    
+    W1 = np.random.rand(m1,k)
+    H1 = np.random.rand(n1,k)
+    
+    W2 = np.random.rand(m2,k)
+    H2 = np.random.rand(n2,k)
+    
+    W1 = W1 / 10.0
+    H1 = H1 / 10.0
+    
+    W2 = W2 / 10.0
+    H2 = H2 / 10.0
+    
+    index = []
+    errX1 = []
+    errX2 = []
+    errX1X2 = []
+    errSqrC = []
+    errD = []
+        
+    errS = []
+    
+    eps_list = []
+    
+    gama = 3.0 - (alpha + beta)
+    
+    reg = 0.01
+
+    for e in range(epoc):
+        learning_rate = 0.005/np.sqrt(e+1)
+        learning_rate_c = 0.005/np.sqrt(e+1)
+        learning_rate_h = 0.005/np.sqrt(e+1)
+    
+        W1c = W1[:,:kc]
+        W1d = W1[:,kc:]
+        
+        H1c = H1[:,:kc]
+        H1d = H1[:,kc:]
+        
+        W2c = W2[:,:kc]
+        W2d = W2[:,kc:]
+        
+        H2c = H2[:,:kc]
+        H2d = H2[:,kc:]
+        
+        W = np.concatenate((W1, W2), axis = 1)
+        
+        grad_w1c = (-2 * gama * np.dot((np.dot(W1, H1.T) - X1), H1c)
+        + 2 * alpha * (W1c - W2c)
+        + 2 * reg * W1c
+        - 4 * delta * np.dot((S - eps * np.dot(W, W.T)), W1c)
+        ) 
+
+        W1cn = W1c - learning_rate_c * grad_w1c
+        
+        grad_w2c = (-2 * gama * np.dot((np.dot(W2, H2.T) - X2), H2c)
+        - 2 * alpha * (W1c - W2c)
+        + 2 * reg * W2c
+        - 4 * delta * np.dot((S - eps * np.dot(W, W.T)), W2c)
+        )
+            
+        W2cn = W2c - learning_rate_c * grad_w2c
+        
+        grad_w1d = (-2 * gama * np.dot((np.dot(W1, H1.T) - X1), H1d) 
+        + 2 * beta * np.dot(W2d, np.dot(W1d.T,W2d))
+        + 2 * reg * W1d
+        - 4 * delta * np.dot((S - eps * np.dot(W, W.T)), W1d)
+        )
+        
+        W1dn = W1d - learning_rate * grad_w1d
+        
+        grad_w2d = (-2 * gama * np.dot((np.dot(W2, H2.T) - X2), H2d) 
+        + 2 * beta * np.dot(W1d, np.dot(W1d.T,W2d))
+        + 2 * reg * W2d
+        - 4 * delta * np.dot((S - eps * np.dot(W, W.T)), W2d)
+        )
+        
+        W2dn = W2d - learning_rate * grad_w2d
+        
+        grad_h1 = (-2 * gama * np.dot(np.transpose(X1 - np.dot(W1, H1.T)), W1) 
+        + 2 * reg * H1
+        )
+        
+        H1n = H1 - learning_rate_h * grad_h1
+        
+        grad_h2 = (-2 * gama * np.dot(np.transpose(X2 - np.dot(W2, H2.T)), W2) 
+        + 2 * reg * H2
+        )
+        
+        H2n = H2 - learning_rate_h * grad_h2
+        
+        grad_eps = delta * np.sum(np.multiply( (-2 * np.dot(W, W.T)) , (S - eps * np.dot(W, W.T)) ))
+        
+        eps = eps - learning_rate * grad_eps
+        
+        eps_list.append(eps)
+        
+        W1n = np.concatenate((W1cn,W1dn), axis = 1)
+        W2n = np.concatenate((W2cn,W2dn), axis = 1)
+        
+        W1n[W1n<0] = 0
+        H1n[H1n<0] = 0
+
+        W2n[W2n<0] = 0
+        H2n[H2n<0] = 0
+
+        errorX1 = error(X1, np.dot(W1, H1.T))
+        
+        errorX2 = error(X2, np.dot(W2, H2.T))
+        
+        errorSqrC = lossfuncSqr(W1cn, W2cn)
+        
+        errorD = lossfuncD(np.transpose(W1dn), W2dn)
+        
+        errorS = error(S, eps * np.dot(W, W.T))
+        
+        index.append(e)
+        
+        errX1.append(errorX1)
+
+        errX2.append(errorX2)
+        
+        errX1X2.append((errorX1 + errorX2)/2)
+        
+        errSqrC.append(errorSqrC)
+        
+        errD.append(errorD)
+        
+        errS.append(errorS)
+        
+        W1 = W1n
+        H1 = H1n
+        
+        W2 = W2n
+        H2 = H2n
+                
+        if (e % 10 == 0):
+            print (e)
+            
+        
+    mode = 'write'
+    #mode = 'test'
+    
+    if (mode == 'write'):        
+        if (os.path.isdir(pathout) == False):
+            os.mkdir(pathout)
+        pathk = pathout + "k" + str(k)
+        if (os.path.isdir(pathk) == False):
+            os.mkdir(pathk)
+        
+        pathkc = pathk + "/c" + str(kc) + "d" + str(k-kc)
+        if (os.path.isdir(pathkc) == False):
+            os.mkdir(pathkc)
+        
+        if (grid == 'test'):
+            np.savetxt(pathkc + "/W1.csv", W1, delimiter=",")
+            np.savetxt(pathkc + "/W2.csv", W2, delimiter=",")
+            
+            np.savetxt(pathkc + "/W1c.csv", W1c, delimiter=",")
+            np.savetxt(pathkc + "/W2c.csv", W2c, delimiter=",")
+            np.savetxt(pathkc + "/W1d.csv", W1d, delimiter=",")
+            np.savetxt(pathkc + "/W2d.csv", W2d, delimiter=",")
+            
+            np.savetxt(pathkc + "/H1.csv", H1, delimiter=",")
+            np.savetxt(pathkc + "/H2.csv", H2, delimiter=",")
+            
+            np.savetxt(pathkc + "/H1c.csv", H1c, delimiter=",")
+            np.savetxt(pathkc + "/H2c.csv", H2c, delimiter=",")
+            np.savetxt(pathkc + "/H1d.csv", H1d, delimiter=",")
+            np.savetxt(pathkc + "/H2d.csv", H2d, delimiter=",")        
+        
+        fw = open(pathkc + '/err.txt', "w")
+        
+        fwx1 = open(pathkc + '/errors-X1.txt', "w")
+        fwx2 = open(pathkc + '/errors-X2.txt', "w")
+        
+        fwe = open(pathkc + '/eps.txt', "w")
+            
+        for i in errX1:
+            fwx1.write(str(i) + '\n')
+                
+        for i in errX2:
+            fwx2.write(str(i) + '\n')
+            
+        for i in eps_list:
+            fwe.write(str(i) + '\n')
+            
+        errX1mae = errorMAE(X1, np.dot(W1, H1.T))
+        errX2mae = errorMAE(X2, np.dot(W2, H2.T))
+  
+        
+        fw.write("Error X1 RMSE: " + str(errX1[-1]) + " MAE: " + str(errX1mae) + "\n")
+        fw.write("Error X2 RMSE: " + str(errX2[-1]) + " MAE: " + str(errX2mae) + "\n")
+        fw.write("Error X1+X2: " + str(errX1X2[-1]) + "\n")
+        fw.write("Error C: " + str(errSqrC[-1]) + "\n")
+        fw.write("Error D: " + str(errD[-1]) + "\n")
+        fw.write("Error S: " + str(errS[-1]) + "\n")
+        fw.write("Eps: " + str(eps))
+        
+            
+        fw.close()
+        fwx1.close()
+        fwx2.close()
+        fwe.close()
+        
+        pathk = pathout + str(k)
+        
+        err1 = error(X1, np.dot(W1, H1.T))
+        fw1 = open(pathk + 'err1.txt', "w")
+        fw1.write(str(err1))
+        fw1.close()
+        
+        err2 = error(X2, np.dot(W2, H2.T))
+        fw2 = open(pathk + 'err2.txt', "w")
+        fw2.write(str(err2))
+        fw2.close()
+        
+        errs = error(S, np.dot(W,W.T))
+        fw3 = open(pathk + 'errs.txt', "w")
+        fw3.write(str(errs))
+        fw3.close()
+        
+
+    pathk = pathout + "k" + str(k)
+    pathkc = pathk + "/c" + str(kc) + "d" + str(k-kc)
+    print (pathkc)
+    
+    
+    #mode = 'test'
+    mode = 'write'
+    
+    #sns.set()
+    
+    plt.figure()
+    plt.plot(index,eps_list)
+    plt.title('Error eps')
+    plt.xlabel('Iteration')
+    plt.ylabel('Value')
+    if mode == 'write':
+        plt.savefig(pathkc + "/Eps.png")
+        plt.savefig(pathkc + "/Eps.pdf")
+        if (grid == 'grid'):
+            plt.clf()
+            plt.close()
+    
+    
+    plt.figure()
+    plt.plot(index,errX1)
+    plt.title('Error X1')
+    plt.xlabel('Iteration')
+    plt.ylabel('Reconstruction Error')
+    if mode == 'write':
+        plt.savefig(pathkc + "/ErrorX1.png")
+        plt.savefig(pathkc + "/ErrorX1.pdf")
+        if (grid == 'grid'):
+            plt.clf()
+            plt.close()
+    
+    plt.figure()
+    plt.plot(index,errX2)
+    plt.title('Error X2')
+    plt.xlabel('Iteration')
+    plt.ylabel('Reconstruction Error')
+    if mode == 'write':
+        plt.savefig(pathkc + "/ErrorX2.png")
+        plt.savefig(pathkc + "/ErrorX2.pdf")
+        if (grid == 'grid'):
+            plt.clf()
+            plt.close()
+    
+    plt.figure()
+    plt.plot(index,errSqrC)
+    plt.title('Error C')
+    plt.xlabel('Iteration')
+    plt.ylabel('Reconstruction Error')
+    if mode == 'write':
+        plt.savefig(pathkc + "/ErrorC.png")
+        plt.savefig(pathkc + "/ErrorC.pdf")
+        if (grid == 'grid'):
+            plt.clf()
+            plt.close()
+    
+    plt.figure()
+    plt.plot(index,errD)
+    plt.title('Error D')
+    plt.xlabel('Iteration')
+    plt.ylabel('Reconstruction Error')
+    if mode == 'write':
+        plt.savefig(pathkc + "/ErrorD.png")
+        plt.savefig(pathkc + "/ErrorD.pdf")
+        if (grid == 'grid'):
+            plt.clf()
+            plt.close()
+    
+    plt.figure()
+    plt.plot(index,errS)
+    plt.title('Error S')
+    plt.xlabel('Iteration')
+    plt.ylabel('Reconstruction Error')
+    if mode == 'write':
+        plt.savefig(pathkc + "/ErrorS.png")
+        plt.savefig(pathkc + "/ErrorS.pdf")
+        if (grid == 'grid'):
+            plt.clf()
+            plt.close()
+            
+    print ('plot')
+    plt.show()
 
 def gd_eps_no_structure(k, kc, pathin, pathout, alpha, beta, grid, epoc):
     
