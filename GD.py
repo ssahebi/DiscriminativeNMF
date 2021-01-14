@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import math
 import os
 
-def gd_structure(k, kc, pathin, pathout, alpha, beta, delta, ep, grid, epoc):
+def gd_structure(k, kc, pathin, pathout, alpha, beta, delta, eps, grid, epoc):
     
     #This method is the implementation of the final model with applying structure
     
@@ -662,6 +662,34 @@ def grid_search_no_structure(pathin, pathout):
                     print ('K %s and Kc %s compeleted' %(k, kc))
 
 
+def grid_search_structure(pathin, pathout):
+    
+    a = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    b = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    d = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    e = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    
+    kc = 0
+    for alpha in a:
+        for beta in b:
+            for delta in d:
+                for eps in e:
+                    pathn = pathout + 'a' + str(alpha) + 'b' + str(beta) + 'd' + str(delta) + 'e' + str(eps) + '/'
+                
+                    if (os.path.isdir(pathout) == False):
+                        os.mkdir(pathout)
+                    if (os.path.isdir(pathn) == False):
+                        os.mkdir(pathn)                
+                    for k in range(10, 21, 1):
+                        for kc in range (1, k):                        
+                            try:
+                                gd_structure(k, kc, pathin, pathout, alpha, beta, delta, eps, 'grid', epoc = 100)
+                            except Exception as e:
+                                fwerr = open(pathout + '/errors' + '_a' + str(alpha) + '_b' + str(beta) +  '.txt', "w")
+                                fwerr.write('alpha: ' + str(alpha) + '\tbeta: ' + str(beta) + '\tk: ' + str(k) + '\tkc: ' + str(kc)  + '\n' + str(e))
+                                fwerr.close()                            
+                        print ('K %s and Kc %s compeleted' %(k, kc))
+
 
 def find_best_param_4_no_s(path):
     
@@ -707,12 +735,11 @@ def find_best_param_4_no_s(path):
                 if os.path.isdir(pathd + k) and get_digits(k) < 22:
                     pathk = pathd + k + '/'
                     dirsk = os.listdir(pathk)
-                    print pathk
+                    print (pathk)
                     for c in dirsk:
                         pathc = pathk + c + '/'
                         if os.path.isdir(pathc):
                             pathf = pathc + 'err.txt'
-                            #print (pathf)
                             f = open(pathf, "r")
                             lines = f.readlines()
                                     
@@ -885,10 +912,23 @@ if __name__ == "__main__":
     alpha = 0.6
     beta = 0.1
     delta = 0.9
+    eps = 0.1
     
+    # runs the Gradient Descent algorithm to minimize the cost function without considering similarities
+    # It takes the total number of latens k, number of common latent factor kc, alpha, beta and number of eopcs
     gd_eps_no_structure(k, kc, pathin, pathout, alpha, beta, epoc)
     
-    #grid_search_no_structure(pathin, pathin + 'grid/')
+    # runs grid search on an array of parametes and calcuates the construction error for each set of parameters
+    grid_search_no_structure(pathin, pathin + 'grid/')
     
-    #find_best_param_4_no_s(pathin + 'grid/')
+    # runs the Gradient Descent algorithm to minimize the cost function considering similarities
+    # It takes the total number of latens k, number of common latent factor kc, alpha, beta, delta and number of eopcs
+    # use 'grid' for running the grid search and calculates the error for a range of parameters
+    # use 'test' for running the algorithm with specific parameters and build decompose matrices.
+    gd_structure(k, kc, pathin, pathout, alpha, beta, delta, eps, 'test', epoc)
     
+    # runs grid search on an array of parametes and calcuates the construction error for each set of parameters
+    grid_search_structure(pathin, pathin + 'grid/')
+    
+    # find the top 10 parameters sets with lowest construction error
+    find_best_param_4_no_s(pathin + 'grid/')
